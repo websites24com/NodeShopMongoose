@@ -1,0 +1,36 @@
+{
+  "name": "nodejs-complete-guide",
+  "version": "1.0.0",
+  "description": "Complete Node.js Guide",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon app.js",
+    "start-server": "node app.js",
+    "dev": "nodemon --ignore 'data/' app.js"
+  },
+  "author": "Websites-24.com",
+  "license": "ISC",
+  "devDependencies": {
+    "@eslint/js": "^9.33.0",
+    "@types/node": "^24.3.0",
+    "eslint": "^9.33.0",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-n": "^17.21.3",
+    "eslint-plugin-unused-imports": "^4.2.0",
+    "globals": "^16.3.0",
+    "nodemon": "^1.18.3"
+  },
+  "dependencies": {
+    "body-parser": "^1.18.3",
+    "bson": "^6.10.4",
+    "dotenv": "^17.2.1",
+    "ejs": "^3.1.10",
+    "express": "^4.16.3",
+    "express-handlebars": "^8.0.1",
+    "mongodb": "^6.18.0",
+    "mysql2": "^3.14.3",
+    "pug": "^3.0.3",
+    "sequelize": "^6.37.7"
+  }
+}

@@ -1,0 +1,71 @@
+{
+  // Define environments: enable Node.js globals and modern ECMAScript features
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+
+  // Parser settings: allow latest ECMAScript syntax, use "script" for CommonJS
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "script"
+  },
+
+  // ESLint plugins to extend functionality
+  "plugins": ["import", "n", "unused-imports"],
+
+  // Base rulesets to extend
+  "extends": ["eslint:recommended", "plugin:import/recommended"],
+
+  // Custom rule overrides
+  "rules": {
+    // Disable the default unused-vars check in favor of unused-imports plugin
+    "no-unused-vars": "off",
+
+    // Error when imports are unused
+    "unused-imports/no-unused-imports": "error",
+
+    // Warn when variables are unused, but allow underscores as ignored
+    "unused-imports/no-unused-vars": [
+      "warn",
+      { "args": "after-used", "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
+    ],
+
+    // Warn when require() cannot be resolved
+    "n/no-missing-require": "warn",
+
+    // Allow CommonJS (require/module.exports) without errors
+    "n/no-unsupported-features/es-syntax": "off",
+    "import/no-commonjs": "off",
+    "import/unambiguous": "off"
+  },
+
+  // Define global variables to avoid "undefined" errors
+  "globals": {
+    "require": "readonly",
+    "module": "readonly",
+    "__dirname": "readonly",
+    "__filename": "readonly"
+  },
+
+  // Import resolver settings for Node.js with common file extensions
+  "settings": {
+    "import/resolver": {
+      "node": { "extensions": [".js", ".cjs", ".mjs"] }
+    }
+  },
+
+  // Overrides for different file types
+  "overrides": [
+    {
+      // Treat .mjs files as ES modules
+      "files": ["**/*.mjs"],
+      "parserOptions": { "sourceType": "module" }
+    },
+    {
+      // Treat .js and .cjs files as CommonJS
+      "files": ["**/*.cjs", "**/*.js"],
+      "parserOptions": { "sourceType": "script" }
+    }
+  ]
+}

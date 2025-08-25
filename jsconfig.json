@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2022",
+    "checkJs": true,
+    "types": ["node"]        // tell VS Code about Node.js globals (require, module, __dirname, etc.)
+  },
+  "include": ["./**/*.js"]
+}
