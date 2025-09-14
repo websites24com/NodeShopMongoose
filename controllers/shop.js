@@ -1,5 +1,8 @@
+const fs = require('fs');
+const path = require('path')
 const Product = require('../models/product');
 const Order = require('../models/order');
+const forwardError = require('../util/forwardError')
 
 exports.getProducts = (req, res, next) => {
   Product.find()
@@ -9,7 +12,7 @@ exports.getProducts = (req, res, next) => {
         prods: products,
         pageTitle: 'All Products',
         path: '/products',
-        isAuthenticated: req.session.isLoggedIn
+        
       });
     })
     .catch(err => {
@@ -25,7 +28,7 @@ exports.getProduct = (req, res, next) => {
         product: product,
         pageTitle: product.title,
         path: '/products',
-        isAuthenticated: req.session.isLoggedIn
+        
       });
     })
     .catch(err => console.log(err));
@@ -38,7 +41,8 @@ exports.getIndex = (req, res, next) => {
         prods: products,
         pageTitle: 'Shop',
         path: '/',
-        isAuthenticated: req.session.isLoggedIn
+        
+        
       });
     })
     .catch(err => {
@@ -56,7 +60,7 @@ req.user
         path: '/cart',
         pageTitle: 'Your Cart',
         products: products,
-        isAuthenticated: req.session.isLoggedIn
+        
       });
     })
     .catch(err => console.log(err));
@@ -71,7 +75,8 @@ exports.postCart = (req, res, next) => {
     .then(result => {
       console.log(result);
       res.redirect('/cart');
-    });
+    })
+    .catch(err => console.log(err));
 };
 
 exports.postCartDeleteProduct = (req, res, next) => {
@@ -87,14 +92,14 @@ req.user
 exports.postOrder = (req, res, next) => {
 req.user
     .populate('cart.items.productId')
-    .execPopulate()
+    
     .then(user => {
       const products = user.cart.items.map(i => {
         return { quantity: i.quantity, product: { ...i.productId._doc } };
       });
       const order = new Order({
         user: {
-          name: req.user.name,
+          email: req.user.email,
           userId: req.user
         },
         products: products
@@ -117,8 +122,36 @@ exports.getOrders = (req, res, next) => {
         path: '/orders',
         pageTitle: 'Your Orders',
         orders: orders,
-        isAuthenticated: req.session.isLoggedIn
+        
       });
     })
     .catch(err => console.log(err));
 };
+
+exports.getInvoice = ( req, res, next) => {
+  const orderId = req.params.orderId;
+  Order.findById(orderId)
+  .then(order => {
+    if (!order) {
+      return forwardError(next, 'No order found', 404);
+    }
+    // check log user
+    if (order.user.userId.toString() !== req.user._id.toString()) {
+      return forwardError(next, 'Unauthorized', 403);
+    }
+    const invoiceName = 'invoice-' + orderId + '.pdf';
+    const invoicePath = path.join('data', 'invoices', invoiceName);
+    fs.readFile(invoicePath, (err, data) => {
+    if (err) {
+      return next(err)
+    }
+      res.setHeader('Content-Type', 'application/pdf')
+      res.setHeader('Content-Disposition', 'inline; filename="' + invoiceName + '"')
+      res.send(data);
+  })
+
+  })
+.catch(err => forwardError(next, err, 500));
+  
+}
+
