@@ -1,11 +1,14 @@
 const fs = require('fs');
-const path = require('path')
+const path = require('path');
+const PDFDocument = require('pdfkit');
 const Product = require('../models/product');
 const Order = require('../models/order');
-const forwardError = require('../util/forwardError')
+const forwardError = require('../util/forwardError');
+const ITEMS_PER_PAGE = 1
 
 exports.getProducts = (req, res, next) => {
   Product.find()
+    
     .then(products => {
       console.log(products);
       res.render('shop/product-list', {
@@ -35,19 +38,36 @@ exports.getProduct = (req, res, next) => {
 };
 
 exports.getIndex = (req, res, next) => {
-  Product.find()
-    .then(products => {
+  const page = req.query.page;
+  let totalItems;
+
+  Product.find().countDocuments().then(
+    numProducts => {
+      totalItems = numProducts
+      return  Product.find()
+              .skip((page -1) * ITEMS_PER_PAGE)
+              .limit(ITEMS_PER_PAGE)
+    }
+  )    .then(products => {
       res.render('shop/index', {
         prods: products,
         pageTitle: 'Shop',
         path: '/',
-        
-        
-      });
+        totalProducts: totalItems,
+        hasNextPage: ITEMS_PER_PAGE * page < totalItems,
+        hasPreviousPage: page > 1,
+        nextPage: page + 1,
+        previousPage: page -1,
+        lastPage: Math.ceil(totalItems / ITEMS_PER_PAGE)
+      })
     })
     .catch(err => {
-      console.log(err);
+      return forwardError(next, err, 500); 
     });
+  
+  
+  
+    
 };
 
 exports.getCart = (req, res, next) => {
@@ -137,19 +157,61 @@ exports.getInvoice = ( req, res, next) => {
     }
     // check log user
     if (order.user.userId.toString() !== req.user._id.toString()) {
-      return forwardError(next, 'Unauthorized', 403);
+      return forwardError(next, 'Only the purchaser is authorized to see that orderd', 403);
     }
     const invoiceName = 'invoice-' + orderId + '.pdf';
     const invoicePath = path.join('data', 'invoices', invoiceName);
-    fs.readFile(invoicePath, (err, data) => {
-    if (err) {
-      return next(err)
-    }
-      res.setHeader('Content-Type', 'application/pdf')
-      res.setHeader('Content-Disposition', 'inline; filename="' + invoiceName + '"')
-      res.send(data);
-  })
+    
+   // Create new PDF document 
 
+   const doc = new PDFDocument();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition',  'inline; filename="' + invoiceName + '"');
+   doc.pipe(fs.createWriteStream(invoicePath))
+   doc.pipe(res);
+  
+   // Set font and size
+
+   doc
+   .font('Times-Roman')
+   .fontSize(20)
+   .text('Invoice')
+
+   doc.text('-----------------------------')
+   let totalPrice = 0;
+   order.products.forEach(prod => {
+    totalPrice = totalPrice + prod.quantity * prod.product.price
+    doc.fontSize(14)
+    .text(` Product: ${prod.product.title} | quantity: ${prod.quantity} x  price: ${prod.product.price}$`)
+    doc.text('-----------------------------')
+    doc
+   .fontSize(14)
+   .text(`Total price: ${totalPrice}$`)
+   });
+
+   
+   
+   // Define text and position
+   
+  
+   
+   doc.end();
+
+
+    // Solution for small files
+    // fs.readFile(invoicePath, (err, data) => {
+    // if (err) {
+    //   return next(err)
+    // }
+    //   res.setHeader('Content-Type', 'application/pdf')
+    //   res.setHeader('Content-Disposition', 'inline; filename="' + invoiceName + '"')
+    //   res.send(data);
+    // })
+    // Streaming for bigger files and more data
+
+    
+
+   
   })
 .catch(err => forwardError(next, err, 500));
   

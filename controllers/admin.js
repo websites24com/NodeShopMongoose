@@ -1,5 +1,7 @@
 const { validationResult } = require('express-validator');
 const Product = require('../models/product');
+const deleteFile = require('../util/deleteFile.js')
+const forwardError = require('../util/forwardError')
 
 exports.getAddProduct = (req, res, next) => {
   res.render('admin/edit-product', {
@@ -84,16 +86,20 @@ exports.getEditProduct = (req, res, next) => {
   if (!editMode) {
     return res.redirect('/');
   }
+
   const prodId = req.params.productId;
-  Product.findById(prodId)
+
+  // changed: check ownership at query level
+  Product.findOne({ _id: prodId, userId: req.user._id }) // added
     .then(product => {
       if (!product) {
-        return res.redirect('/');
+        return res.redirect('/admin/products'); // added
       }
+
       res.render('admin/edit-product', {
         pageTitle: 'Edit Product',
         path: '/admin/edit-product',
-        editing: editMode,
+        editing: editMode, // you could force true here
         product: product,
         hasError: false,
         errorMessage: null,
@@ -101,11 +107,10 @@ exports.getEditProduct = (req, res, next) => {
       });
     })
     .catch(err => {
-      const error = new Error(err);
-      error.httpStatusCode = 500;
-      return next(error);
+      return forwardError(next, err, 500); // changed -> use your util
     });
 };
+
 
 exports.postEditProduct = (req, res, next) => {
   const prodId = req.body.productId;
@@ -124,7 +129,6 @@ exports.postEditProduct = (req, res, next) => {
       hasError: true,
       product: {
         title: updatedTitle,
-       
         price: updatedPrice,
         description: updatedDesc,
         _id: prodId
@@ -136,27 +140,49 @@ exports.postEditProduct = (req, res, next) => {
 
   Product.findById(prodId)
     .then(product => {
-      if (product.userId.toString() !== req.user._id.toString()) {
-        return res.redirect('/');
+      if (!product) {
+        return res.redirect('/admin/products');
       }
+
+      // authorization
+      if (product.userId.toString() !== req.user._id.toString()) {
+        return res.redirect('/admin/products');
+      }
+
       product.title = updatedTitle;
       product.price = updatedPrice;
       product.description = updatedDesc;
+
       if (image) {
-        product.imageUrl = image.path;
+        const oldPath = product.imageUrl;      // added -> store old image path
+        product.imageUrl = image.path;         // changed -> set new image first
+
+        // added -> delete old image same as in postDeleteProduct
+        return deleteFile(oldPath)
+          .catch(err => {
+            if (err && err.code === 'ENOENT') {
+              return; // continue if file not found
+            }
+            return forwardError(next, err, 500);
+          })
+          .then(() => product.save())
+          .then(() => {
+            console.log('UPDATED PRODUCT with new image');
+            res.redirect('/admin/products');
+          });
       }
 
-      return product.save().then(result => {
-        console.log('UPDATED PRODUCT!');
+      return product.save().then(() => {
+        console.log('UPDATED PRODUCT (no new image)');
         res.redirect('/admin/products');
       });
     })
     .catch(err => {
-      const error = new Error(err);
-      error.httpStatusCode = 500;
-      return next(error);
+      // changed -> use same error forwarding style
+      return forwardError(next, err, 500);
     });
 };
+
 
 exports.getProducts = (req, res, next) => {
   Product.find({ userId: req.user._id })
@@ -179,14 +205,24 @@ exports.getProducts = (req, res, next) => {
 
 exports.postDeleteProduct = (req, res, next) => {
   const prodId = req.body.productId;
-  Product.deleteOne({ _id: prodId, userId: req.user._id })
-    .then(() => {
-      console.log('DESTROYED PRODUCT');
-      res.redirect('/admin/products');
+
+  Product.findOne({ _id: prodId, userId: req.user._id })
+    .then(product => {
+      if (!product) {
+        return res.redirect('/admin/products');
+      }
+
+      return deleteFile(product.imageUrl)
+        .catch(err => {
+          if (err && err.code === 'ENOENT') {
+            return; // continue if file not found
+          }
+          return forwardError(next, err, 500);
+        })
+        .then(() => Product.deleteOne({ _id: prodId, userId: req.user._id }))
+        .then(() => {
+          res.redirect('/admin/products');
+        });
     })
-    .catch(err => {
-      const error = new Error(err);
-      error.httpStatusCode = 500;
-      return next(error);
-    });
+    .catch(err => forwardError(next, err, 500));
 };
