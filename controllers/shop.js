@@ -7,20 +7,136 @@ const forwardError = require('../util/forwardError');
 const ITEMS_PER_PAGE = 1
 
 exports.getProducts = (req, res, next) => {
+  // ✅ Always cast query.page to a number, fallback to 1 if undefined or invalid
+  const page = +req.query.page || 1;  // <-- CHANGED: ensure number
+  let totalItems;
+
   Product.find()
-    
+    .countDocuments()
+    .then(numProducts => {
+      totalItems = numProducts;
+
+      // 🖨️ Log the total items count
+      console.log('Total products in DB:', totalItems);
+      console.log('Requested page:', page);
+
+      const skip = (page - 1) * ITEMS_PER_PAGE;
+      const limit = ITEMS_PER_PAGE;
+
+      // 🖨️ Log pagination math
+      console.log('Skip:', skip, 'Limit:', limit);
+
+      return Product.find()
+        .skip(skip)
+        .limit(limit);
+    })
     .then(products => {
-      console.log(products);
       res.render('shop/product-list', {
         prods: products,
-        pageTitle: 'All Products',
+        pageTitle: 'Products',
         path: '/products',
-        
+        totalProducts: totalItems,
+        currentPage: page, // always number
+        hasNextPage: ITEMS_PER_PAGE * page < totalItems,
+        hasPreviousPage: page > 1,
+        nextPage: page + 1,
+        previousPage: page - 1,
+        lastPage: Math.ceil(totalItems / ITEMS_PER_PAGE)
+      });
+
+      // 🖨️ Log pagination flags
+      console.log({
+        currentPage: page,
+        hasNextPage: ITEMS_PER_PAGE * page < totalItems,
+        hasPreviousPage: page > 1,
+        nextPage: page + 1,
+        previousPage: page - 1,
+        lastPage: Math.ceil(totalItems / ITEMS_PER_PAGE)
       });
     })
     .catch(err => {
-      console.log(err);
+      return forwardError(next, err, 500);
     });
+};
+
+
+
+exports.getCart = (req, res, next) => {
+req.user
+    .populate('cart.items.productId')
+   
+    .then(user => {
+      const products = user.cart.items;
+      res.render('shop/cart', {
+        path: '/cart',
+        pageTitle: 'Your Cart',
+        products: products,
+        
+      });
+    })
+    .catch(err => console.log(err));
+};
+
+exports.postCart = (req, res, next) => {
+  const prodId = req.body.productId;
+  Product.findById(prodId)
+    .then(product => {
+      return req.user.addToCart(product);
+    })
+    .then(result => {
+      console.log(result);
+      res.redirect('/cart');
+    })
+    .catch(err => console.log(err));
+};
+
+exports.postCartDeleteProduct = (req, res, next) => {
+  const prodId = req.body.productId;
+req.user
+    .removeFromCart(prodId)
+    .then(result => {
+      res.redirect('/cart');
+    })
+    .catch(err => console.log(err));
+};
+
+exports.postOrder = (req, res, next) => {
+req.user
+    .populate('cart.items.productId')
+    
+    .then(user => {
+      const products = user.cart.items.map(i => {
+        return { quantity: i.quantity, product: { ...i.productId._doc } };
+      });
+      const order = new Order({
+        user: {
+          email: req.user.email,
+          userId: req.user
+        },
+        products: products
+      });
+      return order.save();
+    })
+    .then(result => {
+      return req.user.clearCart();
+    })
+    .then(() => {
+      res.redirect('/orders');
+    })
+    .catch(err => console.log(err));
+};
+
+exports.getOrders = (req, res, next) => {
+  Order.find({ 'user.userId': req.user._id })
+    .then(orders => {
+      res.render('shop/orders', {
+        path: '/orders',
+        pageTitle: 'Your Orders',
+        orders: orders,
+        
+      });
+    })
+    .catch(err => console.log(err));
 };
 
 exports.getProduct = (req, res, next) => {
@@ -38,37 +154,59 @@ exports.getProduct = (req, res, next) => {
 };
 
 exports.getIndex = (req, res, next) => {
-  const page = req.query.page;
+  // ✅ Always cast query.page to a number, fallback to 1 if undefined or invalid
+  const page = +req.query.page || 1;  // <-- CHANGED: ensure number
   let totalItems;
 
-  Product.find().countDocuments().then(
-    numProducts => {
-      totalItems = numProducts
-      return  Product.find()
-              .skip((page -1) * ITEMS_PER_PAGE)
-              .limit(ITEMS_PER_PAGE)
-    }
-  )    .then(products => {
+  Product.find()
+    .countDocuments()
+    .then(numProducts => {
+      totalItems = numProducts;
+
+      // 🖨️ Log the total items count
+      console.log('Total products in DB:', totalItems);
+      console.log('Requested page:', page);
+
+      const skip = (page - 1) * ITEMS_PER_PAGE;
+      const limit = ITEMS_PER_PAGE;
+
+      // 🖨️ Log pagination math
+      console.log('Skip:', skip, 'Limit:', limit);
+
+      return Product.find()
+        .skip(skip)
+        .limit(limit);
+    })
+    .then(products => {
       res.render('shop/index', {
         prods: products,
         pageTitle: 'Shop',
         path: '/',
         totalProducts: totalItems,
+        currentPage: page, // always number
         hasNextPage: ITEMS_PER_PAGE * page < totalItems,
         hasPreviousPage: page > 1,
         nextPage: page + 1,
-        previousPage: page -1,
+        previousPage: page - 1,
         lastPage: Math.ceil(totalItems / ITEMS_PER_PAGE)
-      })
+      });
+
+      // 🖨️ Log pagination flags
+      console.log({
+        currentPage: page,
+        hasNextPage: ITEMS_PER_PAGE * page < totalItems,
+        hasPreviousPage: page > 1,
+        nextPage: page + 1,
+        previousPage: page - 1,
+        lastPage: Math.ceil(totalItems / ITEMS_PER_PAGE)
+      });
     })
     .catch(err => {
-      return forwardError(next, err, 500); 
+      return forwardError(next, err, 500);
     });
-  
-  
-  
-    
 };
+
+
 
 exports.getCart = (req, res, next) => {
 req.user
