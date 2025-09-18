@@ -5,6 +5,8 @@ const Product = require('../models/product');
 const Order = require('../models/order');
 const forwardError = require('../util/forwardError');
 const ITEMS_PER_PAGE = 1
+// @ts-ignore
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 exports.getProducts = (req, res, next) => {
   // ✅ Always cast query.page to a number, fallback to 1 if undefined or invalid
@@ -59,8 +61,6 @@ exports.getProducts = (req, res, next) => {
     });
 };
 
-
-
 exports.getCart = (req, res, next) => {
 req.user
     .populate('cart.items.productId')
@@ -100,7 +100,88 @@ req.user
     .catch(err => console.log(err));
 };
 
+// CHECKOUT
+
+exports.getCheckout = (req, res, next) => {
+  let products;
+  let total = 0;
+
+  req.user
+    .populate('cart.items.productId')
+    .then(user => {
+      // Assign populated cart items
+      products = user.cart.items || [];
+      total = products.reduce((sum, p) => sum + p.quantity * p.productId.price, 0);
+
+      // Create Stripe Checkout Session
+      return stripe.checkout.sessions.create({
+        mode: 'payment',
+        payment_method_types: ['card'],
+        line_items: products.map(p => ({
+          price_data: {
+            currency: 'usd',
+            unit_amount: Math.round(p.productId.price * 100), // Stripe expects cents
+            product_data: {
+              name: p.productId.title,
+              description: p.productId.description || '',
+              images: p.productId.imageUrl ? [p.productId.imageUrl] : []
+            }
+          },
+          quantity: p.quantity
+        })),
+        success_url: `${process.env.APP_URL}/checkout/success`,
+        cancel_url: `${process.env.APP_URL}/checkout/cancel`
+      });
+    })
+    .then(session => {
+      console.log('✅ Stripe session created:', session.id);
+
+      res.render('shop/checkout', {
+        path: '/checkout',
+        pageTitle: 'Checkout',
+        products,
+        totalSum: total,
+        sessionId: session.id,                      // session for frontend
+        stripePublicKey: process.env.STRIPE_PUBLISHABLE_KEY // publishable key
+      });
+    })
+    .catch(err => {
+      console.error('❌ Error in getCheckout:', err);
+      return forwardError(next, err, 500);
+    });
+};
+
+
+
+
+
 exports.postOrder = (req, res, next) => {
+req.user
+    .populate('cart.items.productId')
+    
+    .then(user => {
+      const products = user.cart.items.map(i => {
+        return { quantity: i.quantity, product: { ...i.productId._doc } };
+      });
+      const order = new Order({
+        user: {
+          email: req.user.email,
+          userId: req.user
+        },
+        products: products
+      });
+      return order.save();
+    })
+    .then(result => {
+      return req.user.clearCart();
+    })
+    .then(() => {
+      res.redirect('/orders');
+    })
+    .catch(err => console.log(err));
+};
+
+exports.getCheckoutSuccess = (req, res, next) => {
 req.user
     .populate('cart.items.productId')
     
@@ -354,4 +435,6 @@ exports.getInvoice = ( req, res, next) => {
 .catch(err => forwardError(next, err, 500));
   
 }
+
+
 

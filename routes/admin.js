@@ -56,6 +56,6 @@ router.get('/edit-product/:productId', isAuth, productIdInParam,  adminControlle
 
 router.post('/edit-product', isAuth, [...productValidator, ...productIdInBody, imageInvalidOnEdit], adminController.postEditProduct);
 
-router.post('/delete-product', isAuth, productIdInBody,  adminController.postDeleteProduct);
+router.delete('/product/:productId', isAuth, productIdInBody,  adminController.deleteProduct);
 
 module.exports = router;

@@ -1,0 +1,49 @@
+<%- include('../includes/head.ejs') %>
+<link rel="stylesheet" href="/css/cart.css">
+</head>
+
+<body>
+  <%- include('../includes/navigation.ejs') %>
+
+  <main>
+    <ul class="cart__item-list">
+      <% products.forEach(p => { %>
+        <li class="cart__item">
+          <h1><%= p.productId.title %></h1>
+          <h2>Quantity: <%= p.quantity %></h2>
+        </li>
+      <% }) %>
+    </ul>
+
+    <div>
+      <h2 class="centered">Total: $<%= totalSum %></h2>
+    </div>
+
+    <div class="centered">
+      <button id="order-btn" class="btn">ORDER NOW!</button>
+    </div>
+  </main>
+
+  <script src="https://js.stripe.com/v3/"></script>
+  <script>
+    // Initialize Stripe with the publishable key passed from backend
+    const stripe = Stripe('<%= stripePublicKey %>');
+
+    const orderBtn = document.getElementById('order-btn');
+
+    orderBtn.addEventListener('click', function () {
+      console.log('➡️ ORDER NOW clicked, using sessionId:', '<%= sessionId %>');
+
+      stripe.redirectToCheckout({
+        sessionId: '<%= sessionId %>'
+      }).then(function (result) {
+        if (result.error) {
+          console.error('❌ Stripe redirect error:', result.error.message);
+          alert(result.error.message);
+        }
+      });
+    });
+  </script>
+
+  <%- include('../includes/end.ejs') %>
+</body>

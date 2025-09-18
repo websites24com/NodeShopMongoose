@@ -203,8 +203,8 @@ exports.getProducts = (req, res, next) => {
     });
 };
 
-exports.postDeleteProduct = (req, res, next) => {
-  const prodId = req.body.productId;
+exports.deleteProduct = (req, res, next) => {
+  const prodId = req.params.productId;
 
   Product.findOne({ _id: prodId, userId: req.user._id })
     .then(product => {
@@ -221,8 +221,8 @@ exports.postDeleteProduct = (req, res, next) => {
         })
         .then(() => Product.deleteOne({ _id: prodId, userId: req.user._id }))
         .then(() => {
-          res.redirect('/admin/products');
+          res.status(200).json({message: 'success!'});
         });
     })
-    .catch(err => forwardError(next, err, 500));
+    .catch(err => res.status(500).json());
 };
